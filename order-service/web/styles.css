@@ -1,0 +1,107 @@
+body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f0f2f5;
+    color: #17202a;
+    margin: 0;
+    padding: 20px;
+    line-height: 1.5;
+}
+
+h1 {
+    font-weight: 600;
+    color: #0a4a82;
+    margin-bottom: 20px;
+}
+
+#container {
+    max-width: 600px;
+    margin: 0 auto;
+    background: #ffffff;
+    border: 1px solid #c7d0db;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    padding: 25px 30px;
+    border-radius: 6px;
+}
+
+#result-box {
+    width: 100%;
+    max-width: 800px;
+}
+
+input#orderId {
+    width: 100%;
+    max-width: 300px;
+    padding: 10px 14px;
+    font-size: 1rem;
+    border: 1.5px solid #c7d0db;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+input#orderId:focus {
+    border-color: #0a4a82;
+    box-shadow: 0 0 8px rgba(10, 74, 130, 0.5);
+}
+
+button {
+    background-color: #0a4a82;
+    color: #fff;
+    border: none;
+    padding: 10px 24px;
+    font-size: 1rem;
+    cursor: pointer;
+    margin-left: 12px;
+    border-radius: 4px;
+    transition: background-color 0.3s, box-shadow 0.2s;
+    user-select: none;
+}
+button:hover {
+    background-color: #07345b;
+    box-shadow: 0 4px 8px rgba(7, 52, 91, 0.3);
+}
+button:active {
+    background-color: #05273f;
+    box-shadow: none;
+}
+
+#result {
+    background-color: #e8eef7;
+    border: 1px solid #c7d0db;
+    border-radius: 6px;
+    padding: 20px 25px;
+    margin-top: 25px;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 1rem;
+    color: #17202a;
+    white-space: normal; /* разрешаем перенос строк */
+    word-wrap: break-word;
+    box-sizing: border-box;
+    line-height: 1.6;
+}
+
+#result h2 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    color: #0a4a82;
+    font-weight: 700;
+}
+
+#result h3 {
+    margin-top: 20px;
+    margin-bottom: 8px;
+    color: #0a4a82;
+    font-weight: 600;
+}
+
+#result ul {
+    padding-left: 20px;
+    margin: 10px 0;
+}
+
+#result ul li {
+    margin-bottom: 12px;
+}
+
+#result br {
+    line-height: 1.5;
+}

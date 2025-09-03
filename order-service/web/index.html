@@ -1,0 +1,22 @@
+
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Поиск заказа</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="/static/script.js"></script>
+</head>
+<body>
+<div class="container">
+    <h1>Поиск заказа</h1>
+    <div class="search-box">
+        <input id="orderId" placeholder="Введите order_uid" maxlength="400" />
+        <button onclick="fetchOrder()">Найти</button>
+    </div>
+    <div id="result-box">
+        <pre id="result">Введите ID заказа и нажмите «Найти»</pre>
+    </div>
+</div>
+
+</body>
+</html>
