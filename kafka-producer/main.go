@@ -59,10 +59,18 @@ type Item struct {
 	Name        string `json:"name" fake:"{productname}"`
 	Sale        int    `json:"sale" fake:"{number:0,50}"`
 	Size        string `json:"size" fake:"{randomstring:[S,M,L,XL]}"`
-	TotalPrice  int    `json:"total_price" fake:"{number:100,5000}"`
+	TotalPrice  int    `json:"total_price"`
 	NmID        int    `json:"nm_id" fake:"{number:1000000,9999999}"`
 	Brand       string `json:"brand" fake:"{company}"`
 	Status      int    `json:"status" fake:"{number:100,400}"`
+}
+
+func (i *Item) CalculateTotalPrice() {
+	i.TotalPrice = i.Price * (100 - i.Sale) / 100
+	// Гарантируем, что цена не будет нулевой или отрицательной
+	if i.TotalPrice <= 0 {
+		i.TotalPrice = i.Price / 2 // Минимум половина цены
+	}
 }
 
 func main() {
@@ -111,6 +119,17 @@ func main() {
 		now := time.Now()
 		tenYearsAgo := now.AddDate(-10, 0, 0)
 		order.DateCreated = gofakeit.DateRange(tenYearsAgo, now)
+
+		for j := range order.Items {
+			order.Items[j].CalculateTotalPrice()
+		}
+
+		order.Payment.GoodsTotal = 0
+		for _, item := range order.Items {
+			order.Payment.GoodsTotal += item.TotalPrice
+		}
+
+		order.Payment.Amount = order.Payment.GoodsTotal + order.Payment.DeliveryCost + order.Payment.CustomFee
 
 		orderJSON, err := json.Marshal(order)
 		if err != nil {

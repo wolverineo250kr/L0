@@ -2,6 +2,7 @@ package validation
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"order-service/models"
@@ -86,8 +87,11 @@ func validateNotAncientDate(fl validator.FieldLevel) bool {
 
 func validateItemsAdditional(items []models.Item) error {
 	for i, item := range items {
-		if item.TotalPrice != item.Price*(100-item.Sale)/100 {
-			return fmt.Errorf("item[%d]: total_price не соответствует price и sale", i)
+		expected := float64(item.Price) * (100 - float64(item.Sale)) / 100
+
+		if math.Abs(float64(item.TotalPrice)-expected) > 1.0 {
+			return fmt.Errorf("item[%d]: total_price %d не соответствует расчету (price %d * sale %d%%)",
+				i, item.TotalPrice, item.Price, item.Sale)
 		}
 	}
 	return nil
