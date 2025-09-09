@@ -12,20 +12,20 @@ import (
 )
 
 type Order struct {
-	OrderUID           string    `json:"order_uid" fake:"{uuid}"`
-	TrackNumber        string    `json:"track_number" fake:"{lexify:WBILMTEST??????}"`
-	Entry              string    `json:"entry" fake:"{randomstring:[WBIL,WBIL2,WBIL3]}"`
-	Delivery           Delivery  `json:"delivery"`
-	Payment            Payment   `json:"payment"`
-	Items              []Item    `json:"items" fakesize:"1,3"`
-	Locale             string    `json:"locale" fake:"{randomstring:[en,ru]}"`
-	InternalSignature  string    `json:"internal_signature" fake:"{sentence:2}"`
-	CustomerID         string    `json:"customer_id" fake:"{uuid}"`
-	DeliveryService    string    `json:"delivery_service" fake:"{randomstring:[meest,novaposhta,ukrposhta]}"`
-	Shardkey           string    `json:"shardkey" fake:"{number:1,9}"`
-	SmID               int       `json:"sm_id" fake:"{number:1,100}"`
-	DateCreated        time.Time `json:"date_created"`
-	OofShard           string    `json:"oof_shard" fake:"{number:1,9}"`
+	OrderUID          string    `json:"order_uid" fake:"{uuid}"`
+	TrackNumber       string    `json:"track_number" fake:"{lexify:WBILMTEST??????}"`
+	Entry             string    `json:"entry" fake:"{randomstring:[WBIL,WBIL2,WBIL3]}"`
+	Delivery          Delivery  `json:"delivery"`
+	Payment           Payment   `json:"payment"`
+	Items             []Item    `json:"items" fakesize:"1,3"`
+	Locale            string    `json:"locale" fake:"{randomstring:[en,ru]}"`
+	InternalSignature string    `json:"internal_signature" fake:"{sentence:2}"`
+	CustomerID        string    `json:"customer_id" fake:"{uuid}"`
+	DeliveryService   string    `json:"delivery_service" fake:"{randomstring:[meest,novaposhta,ukrposhta]}"`
+	Shardkey          string    `json:"shardkey" fake:"{number:1,9}"`
+	SmID              int       `json:"sm_id" fake:"{number:1,100}"`
+	DateCreated       time.Time `json:"date_created"`
+	OofShard          string    `json:"oof_shard" fake:"{number:1,9}"`
 }
 
 type Delivery struct {
@@ -39,16 +39,16 @@ type Delivery struct {
 }
 
 type Payment struct {
-	Transaction   string `json:"transaction" fake:"{uuid}"`
-	RequestID     string `json:"request_id" fake:"{uuid}"`
-	Currency      string `json:"currency" fake:"{randomstring:[USD,UAH,EUR]}"`
-	Provider      string `json:"provider" fake:"{randomstring:[wbpay,paypal,stripe]}"`
-	Amount        int    `json:"amount" fake:"{number:100,10000}"`
-	PaymentDt     int64  `json:"payment_dt" fake:"{number:1609459200,1640995200}"` // Timestamp между 2021-2022
-	Bank          string `json:"bank" fake:"{randomstring:[alpha,privat,monobank]}"`
-	DeliveryCost  int    `json:"delivery_cost" fake:"{number:50,500}"`
-	GoodsTotal    int    `json:"goods_total" fake:"{number:100,5000}"`
-	CustomFee     int    `json:"custom_fee" fake:"{number:0,100}"`
+	Transaction  string `json:"transaction" fake:"{uuid}"`
+	RequestID    string `json:"request_id" fake:"{uuid}"`
+	Currency     string `json:"currency" fake:"{randomstring:[USD,UAH,EUR]}"`
+	Provider     string `json:"provider" fake:"{randomstring:[wbpay,paypal,stripe]}"`
+	Amount       int    `json:"amount" fake:"{number:100,10000}"`
+	PaymentDt    int64  `json:"payment_dt" fake:"{number:1609459200,1640995200}"` // Timestamp между 2021-2022
+	Bank         string `json:"bank" fake:"{randomstring:[alpha,privat,monobank]}"`
+	DeliveryCost int    `json:"delivery_cost" fake:"{number:50,500}"`
+	GoodsTotal   int    `json:"goods_total" fake:"{number:100,5000}"`
+	CustomFee    int    `json:"custom_fee" fake:"{number:0,100}"`
 }
 
 type Item struct {
