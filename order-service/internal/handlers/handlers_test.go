@@ -54,7 +54,7 @@ func TestOrderHandler_OrderNotFoundInCacheButFoundInDB(t *testing.T) {
 	mockCache := mocks.NewMockCache(ctrl)
 
 	expectedOrder := &models.Order{
-		OrderUID: "test123",
+		OrderUID:        "test123",
 		TrackNumber:     "TEST123",
 		Entry:           "TEST",
 		Locale:          "en",
