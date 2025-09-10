@@ -14,12 +14,17 @@ import (
 	"order-service/internal/handlers"
 	"order-service/internal/interfaces"
 	"order-service/internal/kafka"
+	"order-service/internal/metrics"
+	"order-service/internal/middleware"
 	"order-service/internal/tracing"
 
 	"go.opentelemetry.io/otel"
 )
 
 func main() {
+	// инициализация метрик
+	metrics.InitMetrics()
+
 	kafkaBrokers := []string{"kafka:9092"}
 	if val := os.Getenv("KAFKA_BROKERS"); val != "" {
 		kafkaBrokers = []string{val}
@@ -80,16 +85,21 @@ func main() {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go consumer.Run(ctx)
+
 	// HTTP Handlers (только просмотр заказов)
 	handler := handlers.NewHandler(cacheStore, dbConn, tracer)
 
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web"))))
-	http.HandleFunc("/order/", handler.OrderHandler)
-	http.HandleFunc("/", handler.WebInterfaceHandler)
+	// роутер и мидлвэр метрик
+	router := http.NewServeMux()
+	router.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web"))))
+	router.HandleFunc("/order/", handler.OrderHandler)
+	router.HandleFunc("/", handler.WebInterfaceHandler)
+	router.Handle("/metrics", middleware.MetricsMiddleware(http.HandlerFunc(handler.MetricsHandler)))
 
 	// HTTP сервер
 	srv := &http.Server{
 		Addr:         ":8081",
+		Handler:      router,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}

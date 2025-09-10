@@ -2,6 +2,7 @@ package cache
 
 import (
 	"order-service/internal/interfaces"
+	"order-service/internal/metrics"
 	"order-service/models"
 	"sync"
 	"time"
@@ -47,10 +48,13 @@ func (c *Cache) Get(orderUID string) (*models.Order, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	item, ok := c.orders[orderUID]
-	if !ok || time.Since(item.createdAt) > c.ttl {
-		return nil, false
+	if ok && time.Since(item.createdAt) <= c.ttl {
+		metrics.CacheOperations.WithLabelValues("get", "hit").Inc()
+		return item.order, true
 	}
-	return item.order, true
+
+	metrics.CacheOperations.WithLabelValues("get", "miss").Inc()
+	return nil, false
 }
 
 func (c *Cache) Set(orderUID string, order *models.Order) {
@@ -62,6 +66,8 @@ func (c *Cache) Set(orderUID string, order *models.Order) {
 	}
 
 	c.orders[orderUID] = cacheItem{order: order, createdAt: time.Now()}
+
+	metrics.CacheOperations.WithLabelValues("set", "success").Inc()
 }
 
 func (c *Cache) evictOldest() {
