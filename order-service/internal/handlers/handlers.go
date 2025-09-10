@@ -11,6 +11,8 @@ import (
 	"order-service/models"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -37,7 +39,7 @@ func (h *Handler) OrderHandler(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) != 3 {
 		errMsg := "Плохой запрос"
-		http.Error(w,errMsg, http.StatusBadRequest)
+		http.Error(w, errMsg, http.StatusBadRequest)
 		span.SetStatus(codes.Error, errMsg)
 		return
 	}
@@ -129,4 +131,10 @@ func (h *Handler) AddOrderHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) WebInterfaceHandler(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "./web/index.html")
+}
+
+var promHandler = promhttp.Handler()
+
+func (h *Handler) MetricsHandler(w http.ResponseWriter, r *http.Request) {
+	promHandler.ServeHTTP(w, r)
 }

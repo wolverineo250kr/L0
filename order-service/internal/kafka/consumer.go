@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"order-service/internal/interfaces"
+	"order-service/internal/metrics"
 	"order-service/internal/validation"
 	"order-service/models"
 	"time"
@@ -106,15 +107,22 @@ func (c *Consumer) processWithRetry(ctx context.Context, m kafka.Message) error 
 }
 
 func (c *Consumer) processMessage(ctx context.Context, m kafka.Message) error {
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start).Seconds()
+		metrics.OrderProcessingTime.WithLabelValues("kafka", "process_message").Observe(duration)
+	}()
+
 	ctx, span := c.tracer.Start(ctx, "kafka.process_message")
 	defer span.End()
 
 	var order models.Order
 	if err := json.Unmarshal(m.Value, &order); err != nil {
 		errMsg := "ошибка при преобразовании JSON"
-		err = fmt.Errorf(errMsg + ": %w", err)
+		err := fmt.Errorf(errMsg+": %w", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, errMsg)
+		metrics.OrdersProcessed.WithLabelValues("kafka", "error").Inc()
 		return err
 	}
 
@@ -122,17 +130,19 @@ func (c *Consumer) processMessage(ctx context.Context, m kafka.Message) error {
 
 	if err := validation.ValidateOrder(&order); err != nil {
 		errMsg := "невалидные данные заказа"
-		err = fmt.Errorf(errMsg+": %w", err)
+		err := fmt.Errorf(errMsg+": %w", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, errMsg)
+		metrics.OrdersProcessed.WithLabelValues("kafka", "error").Inc()
 		return err
 	}
 
 	if err := c.db.SaveOrder(&order); err != nil {
 		errMsg := "ошибка сохранения в БД"
-		err = fmt.Errorf(errMsg + ": %w", err)
+		err := fmt.Errorf(errMsg+": %w", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, errMsg)
+		metrics.OrdersProcessed.WithLabelValues("kafka", "error").Inc()
 		return err
 	}
 
@@ -140,6 +150,7 @@ func (c *Consumer) processMessage(ctx context.Context, m kafka.Message) error {
 	msgSucc := "Заказ " + order.OrderUID + " успешно обработан и сохранен"
 	log.Println(msgSucc)
 	span.SetStatus(codes.Ok, msgSucc)
+	metrics.OrdersProcessed.WithLabelValues("kafka", "success").Inc()
 	return nil
 }
 
