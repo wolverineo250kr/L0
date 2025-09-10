@@ -10,77 +10,104 @@ import (
 	"order-service/internal/validation"
 	"order-service/models"
 	"strings"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Handler struct {
-	Cache interfaces.Cache
-	DB    interfaces.Database
+	Cache  interfaces.Cache
+	DB     interfaces.Database
+	Tracer trace.Tracer
 }
 
-func NewHandler(c interfaces.Cache, db interfaces.Database) *Handler {
+func NewHandler(c interfaces.Cache, db interfaces.Database, tracer trace.Tracer) *Handler {
 	return &Handler{
-		Cache: c,
-		DB:    db,
+		Cache:  c,
+		DB:     db,
+		Tracer: tracer,
 	}
 }
 
 func (h *Handler) OrderHandler(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path
-	parts := strings.Split(path, "/")
+	_, span := h.Tracer.Start(r.Context(), "http.get_order")
+	defer span.End()
+
+	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) != 3 {
-		http.Error(w, "Плохой запрос", http.StatusBadRequest)
+		errMsg := "Плохой запрос"
+		http.Error(w,errMsg, http.StatusBadRequest)
+		span.SetStatus(codes.Error, errMsg)
 		return
 	}
 	orderUID := parts[2]
+	span.SetAttributes(attribute.String("order.uid", orderUID))
 	log.Printf("Поиск заказа: %s", orderUID)
 
 	order, ok := h.Cache.Get(orderUID)
-	if ok {
-		log.Printf("Заказ %s найден в кешеe", orderUID)
-	} else {
-		log.Printf("Заказ %s отсувтует в кеше, идем в бд", orderUID)
+	if !ok {
 		dbOrder, err := h.DB.GetOrder(orderUID)
 		if err != nil {
-			log.Printf("ошибка бд для %s: %v", orderUID, err)
+			span.RecordError(err)
 			if errors.Is(err, sql.ErrNoRows) {
-				http.Error(w, "заказ не найден", http.StatusNotFound)
+				errMsg := "заказ не найден"
+				http.Error(w, errMsg, http.StatusNotFound)
+				span.SetStatus(codes.Error, errMsg)
 			} else {
-				log.Printf("ошибка бд: %v", err)
-				http.Error(w, "внутреняя ошибка сервера", http.StatusInternalServerError)
+				errMsg := "внутренняя ошибка сервера DB error"
+				http.Error(w, errMsg, http.StatusInternalServerError)
+				span.SetStatus(codes.Error, errMsg)
 			}
 			return
 		}
-		log.Printf("бд вернул заказ: %+v", dbOrder)
 		order = dbOrder
 		h.Cache.Set(orderUID, dbOrder)
+	} else {
+		log.Printf("Заказ %s найден в кэше", orderUID)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(order); err != nil {
-		log.Printf("ошибка распарсивания JSON: %v", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "ошибка распарсивания JSON")
+		return
 	}
+	span.SetStatus(codes.Ok, "заказ получен")
 }
 
 func (h *Handler) AddOrderHandler(w http.ResponseWriter, r *http.Request) {
+	_, span := h.Tracer.Start(r.Context(), "http.add_order")
+	defer span.End()
+
 	if r.Method != http.MethodPost {
-		http.Error(w, "Метод запрещен", http.StatusMethodNotAllowed)
+		errMsg := "Метод запрещен"
+		http.Error(w, errMsg, http.StatusMethodNotAllowed)
+		span.SetStatus(codes.Error, errMsg)
 		return
 	}
 
 	var order models.Order
 	if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
-		http.Error(w, "Плохой JSON", http.StatusBadRequest)
+		errMsg := "Плохой JSON"
+		http.Error(w, errMsg, http.StatusBadRequest)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, errMsg)
 		return
 	}
 
 	if err := validation.ValidateOrderForAPI(&order); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "валидация не пройдена")
 		return
 	}
 
 	if err := h.DB.SaveOrder(&order); err != nil {
-		log.Printf("Failed to save order: %v", err)
-		http.Error(w, "внутреняя ошибка сервера", http.StatusInternalServerError)
+		errMsg := "внутренняя ошибка сервера"
+		http.Error(w, errMsg, http.StatusInternalServerError)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, errMsg)
 		return
 	}
 
@@ -95,6 +122,9 @@ func (h *Handler) AddOrderHandler(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		log.Printf("ошибка распарсивания JSON: %v", err)
 	}
+
+	span.SetAttributes(attribute.String("order.uid", order.OrderUID))
+	span.SetStatus(codes.Ok, "заказ создан")
 }
 
 func (h *Handler) WebInterfaceHandler(w http.ResponseWriter, r *http.Request) {

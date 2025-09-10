@@ -12,6 +12,10 @@ import (
 	"order-service/models"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/segmentio/kafka-go"
 )
 
@@ -23,9 +27,10 @@ type Consumer struct {
 	maxRetries  int
 	retryDelay  time.Duration
 	backoffMode string // "fixed" или "exponential"
+	tracer      trace.Tracer
 }
 
-func NewConsumer(brokers []string, topic, groupID, dlqTopic string, db interfaces.Database, cache interfaces.Cache) *Consumer {
+func NewConsumer(brokers []string, topic, groupID, dlqTopic string, db interfaces.Database, cache interfaces.Cache, tracer trace.Tracer) *Consumer {
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:        brokers,
 		Topic:          topic,
@@ -44,6 +49,7 @@ func NewConsumer(brokers []string, topic, groupID, dlqTopic string, db interface
 		maxRetries:  3,
 		retryDelay:  2 * time.Second,
 		backoffMode: "exponential", // можно "fixed"
+		tracer:      tracer,
 	}
 }
 
@@ -100,22 +106,40 @@ func (c *Consumer) processWithRetry(ctx context.Context, m kafka.Message) error 
 }
 
 func (c *Consumer) processMessage(ctx context.Context, m kafka.Message) error {
+	ctx, span := c.tracer.Start(ctx, "kafka.process_message")
+	defer span.End()
+
 	var order models.Order
 	if err := json.Unmarshal(m.Value, &order); err != nil {
-		return fmt.Errorf("ошибка при преобразовании JSON: %w", err)
+		errMsg := "ошибка при преобразовании JSON"
+		err = fmt.Errorf(errMsg + ": %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, errMsg)
+		return err
 	}
 
-	// валидация заказа
+	span.SetAttributes(attribute.String("order.uid", order.OrderUID))
+
 	if err := validation.ValidateOrder(&order); err != nil {
-		return fmt.Errorf("невалидные данные заказа: %w", err)
+		errMsg := "невалидные данные заказа"
+		err = fmt.Errorf(errMsg+": %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, errMsg)
+		return err
 	}
 
 	if err := c.db.SaveOrder(&order); err != nil {
-		return fmt.Errorf("ошибка сохранения в БД: %w", err)
+		errMsg := "ошибка сохранения в БД"
+		err = fmt.Errorf(errMsg + ": %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, errMsg)
+		return err
 	}
 
 	c.cache.Set(order.OrderUID, &order)
-	log.Printf("Заказ %s успешно обработан и сохранен", order.OrderUID)
+	msgSucc := "Заказ " + order.OrderUID + " успешно обработан и сохранен"
+	log.Println(msgSucc)
+	span.SetStatus(codes.Ok, msgSucc)
 	return nil
 }
 
