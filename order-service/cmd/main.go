@@ -4,15 +4,19 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"order-service/internal/cache"
 	"order-service/internal/db"
 	"order-service/internal/handlers"
 	"order-service/internal/interfaces"
 	"order-service/internal/kafka"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
+	"order-service/internal/tracing"
+
+	"go.opentelemetry.io/otel"
 )
 
 func main() {
@@ -26,10 +30,25 @@ func main() {
 		log.Fatal("POSTGRES_DSN is not set")
 	}
 
+	tp, err := tracing.InitTracer("order-service")
+	if err != nil {
+		log.Fatalf("Failed to initialize tracing: %v", err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tp.Shutdown(ctx); err != nil {
+			log.Printf("Error shutting down tracer: %v", err)
+		}
+	}()
+	tracer := otel.GetTracerProvider().Tracer("main")
+	ctx, span := tracer.Start(context.Background(), "application.start")
+	defer span.End()
+
 	var dbConn interfaces.Database
 	var cacheStore interfaces.Cache
 
-	dbConn, err := db.NewPostgresDB(postgresDSN)
+	dbConn, err = db.NewPostgresDB(postgresDSN)
 	if err != nil {
 		log.Fatal("Не удалось подключиться к базе данных:", err)
 	}
@@ -56,17 +75,15 @@ func main() {
 		"orders_dlq",
 		dbConn,
 		cacheStore,
+		tracer,
 	)
-
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go consumer.Run(ctx)
-
 	// HTTP Handlers (только просмотр заказов)
-	handler := handlers.NewHandler(cacheStore, dbConn)
+	handler := handlers.NewHandler(cacheStore, dbConn, tracer)
 
-	http.Handle("/static/",
-		http.StripPrefix("/static/", http.FileServer(http.Dir("web"))))
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web"))))
 	http.HandleFunc("/order/", handler.OrderHandler)
 	http.HandleFunc("/", handler.WebInterfaceHandler)
 
@@ -95,4 +112,8 @@ func main() {
 	if err := srv.Shutdown(ctxTimeout); err != nil {
 		log.Fatalf("Сервер принудительно отключен: %v", err)
 	}
+
+	cancel() // остановка Kafka consumer
+	consumer.Close()
+	log.Println("сервер завершил работу корректно")
 }

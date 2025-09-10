@@ -13,6 +13,19 @@ services:
       timeout: 5s
       retries: 5
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.40
+    container_name: jaeger
+    ports:
+      - "16686:16686"    # Web UI
+      - "14268:14268"    # HTTP collector
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:16686 || exit 1"]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+
   kafka:
     image: confluentinc/cp-kafka:7.4.0
     container_name: kafka
@@ -53,18 +66,6 @@ services:
       retries: 10
       start_period: 30s
 
-#  migrations:
-#    image: migrate/migrate:v4.16.2
-#    volumes:
-#      - ./migrations:/migrations
-#    command:
-#      -path=/migrations
-#      -database=postgres://ordersuser:orderspassword@postgres:5432/ordersdb?sslmode=disable
-#      up
-#    depends_on:
-#      postgres:
-#        condition: service_healthy
-
   order-service:
     build: ./order-service
     container_name: order-service
@@ -72,14 +73,17 @@ services:
       - "8081:8081"
     volumes:
       - ./order-service/web:/app/web
+    environment:
+      POSTGRES_DSN: ${POSTGRES_DSN}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      JAEGER_ENDPOINT: ${JAEGER_ENDPOINT}
     depends_on:
       kafka:
         condition: service_healthy
       postgres:
         condition: service_healthy
-    environment:
-      POSTGRES_DSN: ${POSTGRES_DSN}
-      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      jaeger:
+        condition: service_started
     restart: unless-stopped
 
   kafka-producer:
