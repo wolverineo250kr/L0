@@ -1,3 +1,4 @@
+// internal/handlers/handlers.go
 package handlers
 
 import (
@@ -7,8 +8,6 @@ import (
 	"log"
 	"net/http"
 	"order-service/internal/interfaces"
-	"order-service/internal/validation"
-	"order-service/models"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -76,57 +75,6 @@ func (h *Handler) OrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	span.SetStatus(codes.Ok, "заказ получен")
-}
-
-func (h *Handler) AddOrderHandler(w http.ResponseWriter, r *http.Request) {
-	_, span := h.Tracer.Start(r.Context(), "http.add_order")
-	defer span.End()
-
-	if r.Method != http.MethodPost {
-		errMsg := "Метод запрещен"
-		http.Error(w, errMsg, http.StatusMethodNotAllowed)
-		span.SetStatus(codes.Error, errMsg)
-		return
-	}
-
-	var order models.Order
-	if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
-		errMsg := "Плохой JSON"
-		http.Error(w, errMsg, http.StatusBadRequest)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, errMsg)
-		return
-	}
-
-	if err := validation.ValidateOrderForAPI(&order); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "валидация не пройдена")
-		return
-	}
-
-	if err := h.DB.SaveOrder(&order); err != nil {
-		errMsg := "внутренняя ошибка сервера"
-		http.Error(w, errMsg, http.StatusInternalServerError)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, errMsg)
-		return
-	}
-
-	h.Cache.Set(order.OrderUID, &order)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(map[string]string{
-		"status":   "created",
-		"message":  "Заказа успешно создан",
-		"order_id": order.OrderUID,
-	}); err != nil {
-		log.Printf("ошибка распарсивания JSON: %v", err)
-	}
-
-	span.SetAttributes(attribute.String("order.uid", order.OrderUID))
-	span.SetStatus(codes.Ok, "заказ создан")
 }
 
 func (h *Handler) WebInterfaceHandler(w http.ResponseWriter, r *http.Request) {
