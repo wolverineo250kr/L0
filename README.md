@@ -79,7 +79,18 @@ Producer отвечает за отправку сообщений о заказ
 Для удобства просомотра сообщений подключен веб интерфейс Kafka Ui
 `http://localhost:8080/`
 
-## 9. Тестирование проекта (Windows 10)
+## 9. Подключение Prometheus к Grafana
+Адрес Grafana ```http://localhost:3000/```
+1. В боковом меню выберите **Configuration → Data Sources**.
+2. Нажмите **Add data source**.
+3. Выберите **Prometheus**.
+
+Prometheus server URL: указать  ```http://host.docker.internal:9090 ```
+
+## 10. jaeger
+Адрес http://localhost:16686/
+ 
+## 11. Тестирование проекта (Windows 10)
 
 ### Юнит-тесты
 ```
