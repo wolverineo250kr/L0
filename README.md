@@ -78,3 +78,39 @@ Producer отвечает за отправку сообщений о заказ
 ## 8. Просмотр очереди Kafka Ui
 Для удобства просомотра сообщений подключен веб интерфейс Kafka Ui
 `http://localhost:8080/`
+
+## 9. Тестирование проекта (Windows 10)
+
+### Юнит-тесты
+```
+cd <ПУТЬ_ДО_ПРОЕКТА>\L0\order-service
+go test -v ./internal/... -short
+Интеграционные тесты
+powershell
+Copy code
+# Поднятие тестовых контейнеров
+docker-compose -f ..\docker-compose.test.yml up -d
+Start-Sleep -Seconds 10
+```
+# Запуск интеграционных тестов
+```
+go test -v ./internal/db -tags=integration
+go test -v ./internal/kafka -tags=integration
+go test -v ./internal/middleware -tags=integration
+go test -v ./internal/tracing -tags=integration
+```
+# Остановка контейнеров
+```
+docker-compose -f ..\docker-compose.test.yml down
+```
+# Все тесты подряд
+ ```
+go test -v ./internal/... -short
+docker-compose -f ..\docker-compose.test.yml up -d
+Start-Sleep -Seconds 10
+go test -v ./internal/db -tags=integration
+go test -v ./internal/kafka -tags=integration
+go test -v ./internal/middleware -tags=integration
+go test -v ./internal/tracing -tags=integration
+docker-compose -f ..\docker-compose.test.yml down
+```

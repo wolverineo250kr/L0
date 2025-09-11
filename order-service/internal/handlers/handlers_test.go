@@ -1,3 +1,4 @@
+// internal/handlers/handlers_test.go
 package handlers
 
 import (
@@ -8,6 +9,8 @@ import (
 	"net/http/httptest"
 	"order-service/internal/mocks"
 	"order-service/models"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -15,7 +18,13 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 )
+
+func createTestHandler(mockCache *mocks.MockCache, mockDB *mocks.MockDatabase) *Handler {
+	tracer := noop.NewTracerProvider().Tracer("test")
+	return NewHandler(mockCache, mockDB, tracer)
+}
 
 func TestOrderHandler_OrderFoundInCache(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -31,7 +40,7 @@ func TestOrderHandler_OrderFoundInCache(t *testing.T) {
 
 	mockCache.EXPECT().Get("test123").Return(expectedOrder, true)
 
-	handler := NewHandler(mockCache, mockDB)
+	handler := createTestHandler(mockCache, mockDB)
 
 	req := httptest.NewRequest("GET", "/order/test123", nil)
 	w := httptest.NewRecorder()
@@ -54,49 +63,16 @@ func TestOrderHandler_OrderNotFoundInCacheButFoundInDB(t *testing.T) {
 	mockCache := mocks.NewMockCache(ctrl)
 
 	expectedOrder := &models.Order{
-		OrderUID:        "test123",
-		TrackNumber:     "TEST123",
-		Entry:           "TEST",
-		Locale:          "en",
-		CustomerID:      "test",
-		DeliveryService: "test",
-		DateCreated:     time.Now(),
-		Delivery: models.Delivery{
-			Name:    "Test",
-			Phone:   "+1234567890",
-			Zip:     "123",
-			City:    "Test",
-			Address: "Test",
-			Region:  "Test",
-		},
-		Payment: models.Payment{
-			Transaction:  "test123",
-			Currency:     "USD",
-			Provider:     "test",
-			Amount:       100,
-			PaymentDt:    1637907727,
-			Bank:         "test",
-			DeliveryCost: 10,
-			GoodsTotal:   100,
-		},
-		Items: []models.Item{{
-			ChrtID:      1,
-			TrackNumber: "TEST123",
-			Price:       100,
-			Rid:         "test",
-			Name:        "Test",
-			TotalPrice:  100,
-			NmID:        1,
-			Brand:       "Test",
-			Status:      1,
-		}},
+		OrderUID:    "test123",
+		TrackNumber: "WBILMTESTTRACK",
+		DateCreated: time.Now(),
 	}
 
 	mockCache.EXPECT().Get("test123").Return(nil, false)
 	mockDB.EXPECT().GetOrder("test123").Return(expectedOrder, nil)
 	mockCache.EXPECT().Set("test123", expectedOrder)
 
-	handler := NewHandler(mockCache, mockDB)
+	handler := createTestHandler(mockCache, mockDB)
 
 	req := httptest.NewRequest("GET", "/order/test123", nil)
 	w := httptest.NewRecorder()
@@ -104,7 +80,6 @@ func TestOrderHandler_OrderNotFoundInCacheButFoundInDB(t *testing.T) {
 	handler.OrderHandler(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-
 	assert.NotEqual(t, "null", strings.TrimSpace(w.Body.String()))
 }
 
@@ -118,7 +93,7 @@ func TestOrderHandler_OrderNotFound(t *testing.T) {
 	mockCache.EXPECT().Get("notfound").Return(nil, false)
 	mockDB.EXPECT().GetOrder("notfound").Return(nil, sql.ErrNoRows)
 
-	handler := NewHandler(mockCache, mockDB)
+	handler := createTestHandler(mockCache, mockDB)
 
 	req := httptest.NewRequest("GET", "/order/notfound", nil)
 	w := httptest.NewRecorder()
@@ -136,9 +111,9 @@ func TestOrderHandler_DatabaseError(t *testing.T) {
 	mockCache := mocks.NewMockCache(ctrl)
 
 	mockCache.EXPECT().Get("test123").Return(nil, false)
-	mockDB.EXPECT().GetOrder("test123").Return(nil, errors.New("database connection failed"))
+	mockDB.EXPECT().GetOrder("test123").Return(nil, errors.New("db connection failed"))
 
-	handler := NewHandler(mockCache, mockDB)
+	handler := createTestHandler(mockCache, mockDB)
 
 	req := httptest.NewRequest("GET", "/order/test123", nil)
 	w := httptest.NewRecorder()
@@ -148,74 +123,46 @@ func TestOrderHandler_DatabaseError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestAddOrderHandler_Success(t *testing.T) {
+func TestOrderHandler_BadRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockDB := mocks.NewMockDatabase(ctrl)
 	mockCache := mocks.NewMockCache(ctrl)
 
-	order := &models.Order{
-		OrderUID:        "test123",
-		TrackNumber:     "WBILMTESTTRACK",
-		Entry:           "WBIL",
-		Locale:          "en",
-		CustomerID:      "test",
-		DeliveryService: "meest",
-		DateCreated:     time.Now(),
-		Delivery: models.Delivery{
-			Name:    "Test User",
-			Phone:   "+1234567890",
-			Zip:     "123456",
-			City:    "Test City",
-			Address: "Test Address",
-			Region:  "Test Region",
-			Email:   "test@example.com",
-		},
-		Payment: models.Payment{
-			Transaction:  "trans123",
-			RequestID:    "",
-			Currency:     "USD",
-			Provider:     "test",
-			Amount:       100,
-			PaymentDt:    1637907727,
-			Bank:         "test",
-			DeliveryCost: 10,
-			GoodsTotal:   100,
-			CustomFee:    0,
-		},
-		Items: []models.Item{{
-			ChrtID:      9934930,
-			TrackNumber: "WBILMTESTTRACK",
-			Price:       100,
-			Rid:         "ab4219087a764ae0btest",
-			Name:        "Test Item",
-			Sale:        0,
-			Size:        "0",
-			TotalPrice:  100,
-			NmID:        2389212,
-			Brand:       "Test Brand",
-			Status:      202,
-		}},
-	}
+	handler := createTestHandler(mockCache, mockDB)
 
-	orderJSON, _ := json.Marshal(order)
-
-	mockDB.EXPECT().SaveOrder(gomock.Any()).Return(nil)
-	mockCache.EXPECT().Set("test123", gomock.Any())
-
-	handler := NewHandler(mockCache, mockDB)
-
-	req := httptest.NewRequest("POST", "/api/order/add", strings.NewReader(string(orderJSON)))
-	req.Header.Set("Content-Type", "application/json")
+	req := httptest.NewRequest("GET", "/order", nil)
 	w := httptest.NewRecorder()
 
-	handler.AddOrderHandler(w, req)
+	handler.OrderHandler(w, req)
 
-	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
 
-	var response map[string]string
-	err := json.NewDecoder(w.Body).Decode(&response)
-	require.NoError(t, err)
-	assert.Equal(t, "created", response["status"])
+func TestWebInterfaceHandler(t *testing.T) {
+	handler := &Handler{}
+
+	cwd, _ := os.Getwd()
+	defer os.Chdir(cwd)
+	os.Chdir(filepath.Join(cwd, "../.."))
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+
+	handler.WebInterfaceHandler(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestMetricsHandler(t *testing.T) {
+	handler := &Handler{}
+
+	req := httptest.NewRequest("GET", "/metrics", nil)
+	w := httptest.NewRecorder()
+
+	handler.MetricsHandler(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "go_")
 }

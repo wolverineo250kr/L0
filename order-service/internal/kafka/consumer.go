@@ -1,3 +1,4 @@
+// internal/kafka/consumer.go
 package kafka
 
 import (
